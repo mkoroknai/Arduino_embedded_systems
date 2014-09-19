@@ -1,0 +1,114 @@
+#include <stdint.h>
+
+#define N 471
+
+// global variables
+uint8_t* ioDDRB;
+uint8_t* ioDDRC;
+uint8_t* ioDDRD;
+uint8_t* ioPORTB;
+uint8_t* ioPORTC;
+uint8_t* ioPORTD;
+uint8_t* iPINB;
+uint8_t* iPINC;
+
+void reg_launch()
+{
+  ioPORTB = 0x25;
+  ioDDRB = 0x24;
+  iPINB = 0x23;
+  
+  ioPORTC = 0x28;
+  ioDDRC = 0x27;
+  iPINC = 0x26;
+  
+  ioPORTD = 0x2B;
+  ioDDRD = 0x2A;
+  
+  *ioDDRB &= 0xFE; // make PB0 an input 1111 1110
+  *ioPORTB |= 0x01; // pull up resistor 0000 0001
+  
+  *ioDDRC &= 0xFE; // make PC0 an input 1111 1110
+  *ioPORTC |= 0x01; // pull up resistor 0000 0001
+  
+  *ioDDRD |= 0x60; // make PD6 and PD5 outputs 0110 0000
+  *ioPORTD = 0x00; // turn off all PD pins
+  
+  return;
+}
+
+//----------------------------------------------
+
+uint8_t de_bounce(uint8_t bit_number, char port_letter) // gets the pin and the port
+{
+  uint8_t* pin_pointer;
+  uint8_t current_PINstatus, PINstatus;
+  uint8_t mask; // mask for reading bit
+  
+  // give pin_pointer the correct value
+  if(port_letter == 'B') pin_pointer = 0x23;
+  else if(port_letter == 'C') pin_pointer = 0x26;
+  else if(port_letter == 'D') pin_pointer = 0x29;
+  
+  // 
+  if(bit_number == 0) mask = 0x01;
+  else if(bit_number == 1) mask = 0x02;
+  else if(bit_number == 2) mask = 0x04;
+  else if(bit_number == 3) mask = 0x08;
+  else if(bit_number == 4) mask = 0x10;
+  else if(bit_number == 5) mask = 0x20;
+  else if(bit_number == 6) mask = 0x40;
+  else if(bit_number == 7) mask = 0x80;
+  
+  PINstatus = 1;
+  current_PINstatus = ((*pin_pointer)& mask) >> bit_number;
+  
+  if(current_PINstatus != PINstatus)
+  {
+    myHardDelay(30);
+    current_PINstatus = ((*pin_pointer)& mask) >> bit_number;
+    if(current_PINstatus != PINstatus)
+    {
+      PINstatus = current_PINstatus;
+    }
+  }
+  
+  return(PINstatus);
+}
+
+//----------------------------------------------
+
+int main()
+{
+  reg_launch();
+  
+  uint8_t PINB0status, PINC0status;
+  
+  while(1)
+  {
+  
+    PINB0status = de_bounce(0, 'B');
+    PINC0status = de_bounce(0, 'C');
+    
+    if(!PINB0status || !PINC0status)
+    {
+      *ioPORTD |= 0x40;
+    }
+    else
+    {
+      *ioPORTD &= 0xB0;
+    }
+  
+    if(!PINB0status && !PINC0status)
+    {
+      *ioPORTD |= 0x20;
+    }
+    else
+    {
+      *ioPORTD &= 0xD0;
+    }
+  
+  }
+  
+  return(0);
+}
